@@ -46,7 +46,7 @@ if __name__ == '__main__':
     from typing import Optional
     import os
 
-    os.environ['NGROK_AUTHTOKEN'] = "2sIgZAenzEek9TtPDNHfC8JMO20_5BxdmcKTj5DZVwqUR6ky7"
+    os.environ['NGROK_AUTHTOKEN'] = "2vEi94KtregEObYJeBtrbUpeRm2_2zDF1G8AieXsiQG8JKEiE"
 
     logging.basicConfig(
         level=logging.WARNING,
