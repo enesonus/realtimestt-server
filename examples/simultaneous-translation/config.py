@@ -1,5 +1,8 @@
 import argparse
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Load API keys from environment variables or define them here
 # It's strongly recommended to use environment variables for security

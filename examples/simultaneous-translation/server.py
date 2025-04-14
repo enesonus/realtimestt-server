@@ -17,9 +17,6 @@ from utils import decode_and_resample, preprocess_realtime_text
 from models import ClientSession
 from services.translation import TranslationService
 from services.tts import TTSService
-from dotenv import load_dotenv
-
-load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -41,7 +38,14 @@ class AudioServer:
         self.ws_url = None
         self.args = args
         # Start the server with a dummy recorder to initialize whisper properly
-        recorder = AudioToTextRecorder()
+        recorder = AudioToTextRecorder(**{
+            'faster_whisper_vad_filter': False,
+            'spinner': False,
+            'use_microphone': False,
+            'model': self.args.model,
+            'enable_realtime_transcription': self.args.enable_realtime,
+            'realtime_model_type': self.args.realtime_model,
+        })
         recorder.start()
         recorder.stop()
         recorder.shutdown()
