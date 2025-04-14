@@ -107,8 +107,6 @@ import sys
 import ngrok
 import os
 
-os.environ['NGROK_AUTHTOKEN'] = "2sIgZAenzEek9TtPDNHfC8JMO20_5BxdmcKTj5DZVwqUR6ky7"
-
 debug_logging = False
 extended_logging = False
 send_recorded_chunk = False

@@ -44,9 +44,8 @@ if __name__ == '__main__':
     import sys
     from dataclasses import dataclass
     from typing import Optional
-    import os
-
-    os.environ['NGROK_AUTHTOKEN'] = "2vEi94KtregEObYJeBtrbUpeRm2_2zDF1G8AieXsiQG8JKEiE"
+    from dotenv import load_dotenv
+    load_dotenv()
 
     logging.basicConfig(
         level=logging.WARNING,
@@ -74,6 +73,14 @@ if __name__ == '__main__':
             self.setup_routes()
             self.ws_url = None
             self.args = args
+
+            # Start the server with a dummy recorder to initialize whisper properly
+            recorder = AudioToTextRecorder()
+            recorder.start()
+            recorder.stop()
+            recorder.shutdown()
+            del recorder
+            print("Server initialized")
 
         def setup_routes(self):
             self.app.router.add_get('/', self.handle_client_page)
@@ -259,11 +266,11 @@ if __name__ == '__main__':
 
                             if self.main_loop is not None:
                                 asyncio.run_coroutine_threadsafe(
-                                self.send_to_client(client_id, {
-                                    'type': 'fullSentence',
-                                    'text': full_sentence,
-                                    'latency_ms': latency_ms
-                                }), self.main_loop)
+                                    self.send_to_client(client_id, {
+                                        'type': 'fullSentence',
+                                        'text': full_sentence,
+                                        'latency_ms': latency_ms
+                                    }), self.main_loop)
                                 print(
                                     f"\rClient {client_id} Sentence: {full_sentence} (Latency: {latency_ms}ms)")
                     except Exception as e:
@@ -322,9 +329,7 @@ if __name__ == '__main__':
             # Start HTTP server on port 8001 with static domain
             http_tunnel = await ngrok.forward(8001,
                                               "http",
-                                              authtoken_from_env=True,
-                                                # domain="summary-together-gopher.ngrok-free.app",
-                                              )
+                                              authtoken_from_env=True)
             print(
                 f"HTTP tunnel \"{http_tunnel.url()}\" -> \"http://localhost:8001\"")
 
