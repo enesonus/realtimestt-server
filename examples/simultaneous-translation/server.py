@@ -124,10 +124,10 @@ class AudioServer:
 
         return {
             'silero_deactivity_detection': True,
-            'pre_recording_buffer_duration': 1.2,
+            'pre_recording_buffer_duration': 1.5,
             'early_transcription_on_silence': self.args.post_speech_silence / 2,
             'print_transcription_time': True,
-            'faster_whisper_vad_filter': False,
+            'faster_whisper_vad_filter': True,
             'spinner': False,
             'use_microphone': False,
             'model': self.args.model,
