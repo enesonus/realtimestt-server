@@ -1,6 +1,7 @@
 import time
 from openai import OpenAI
-from config import GROQ_API_KEY
+from config import GROQ_API_KEY, TARGET_LANGUAGE, TRANSLATION_MODEL
+
 
 class TranslationService:
     """Handles translation of text from Turkish to English using Groq's API."""
@@ -34,11 +35,18 @@ class TranslationService:
         
         try:
             completion = self.client.chat.completions.create(
-                model="meta-llama/llama-4-scout-17b-16e-instruct",
+                model=TRANSLATION_MODEL,
                 messages=[
                     {
                         "role": "system",
-                        "content": "Translate the given Turkish text to English. Never output text other than the translation itself. Make sure your translation is properly aligned with the meaning of the original text. Do not add any additional information or context. Don't try to translate people's names and company names."
+                        "content": f"""Translate every message you receive into {TARGET_LANGUAGE}.
+                        Output ONLY the translation—no explanations, brackets, code blocks, or metadata.
+                        Preserve the speaker’s meaning, tone, register, and intent.
+                        • Keep proper nouns, numbers, units, and acronyms exactly as given.
+                        • Mirror line breaks, punctuation, and bullet points when present.
+                        • If the input is fragmentary or mid‑sentence, give the most natural partial translation without adding filler words.
+                        • If the source text is already in {TARGET_LANGUAGE}, repeat it verbatim.
+                        Produce plain UTF‑8 text nothing else ."""
                     },
                     {
                         "role": "user",
@@ -58,4 +66,4 @@ class TranslationService:
             
         except Exception as e:
             print(f"Translation error: {e}")
-            return text, time.time() - start_time  # Return original text on error 
+            return text, time.time() - start_time  # Return original text on error

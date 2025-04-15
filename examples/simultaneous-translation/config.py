@@ -8,6 +8,11 @@ load_dotenv()
 # It's strongly recommended to use environment variables for security
 NGROK_AUTHTOKEN = os.environ.get('NGROK_AUTHTOKEN')
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+DEEPINFRA_API_KEY = os.environ.get('DEEPINFRA_API_KEY')
+PROVIDER = os.environ.get('PROVIDER', 'groq')
+TARGET_LANGUAGE = os.environ.get('TARGET_LANGUAGE', 'English')
+TRANSLATION_MODEL = os.environ.get('TRANSLATION_MODEL', 'llama-3.3-70b-versatile')
 
 def parse_args():
     parser = argparse.ArgumentParser(

@@ -12,7 +12,7 @@ from aiohttp import web
 from RealtimeSTT import AudioToTextRecorder
 
 # Local imports
-from config import parse_args
+from config import parse_args, PROVIDER
 from utils import decode_and_resample, preprocess_realtime_text
 from models import ClientSession
 from services.translation import TranslationService
@@ -53,8 +53,8 @@ class AudioServer:
         # Initialize services
         self.translation_service = TranslationService()
         if self.args.enable_tts:
-            self.tts_service = TTSService()
-            print("TTS is enabled")
+            self.tts_service = TTSService(PROVIDER)
+            print(f"TTS is enabled with provider: {PROVIDER}")
 
     def setup_routes(self):
         """Set up HTTP routes for the server."""
