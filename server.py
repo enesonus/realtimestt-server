@@ -75,7 +75,14 @@ if __name__ == '__main__':
             self.args = args
 
             # Start the server with a dummy recorder to initialize whisper properly
-            recorder = AudioToTextRecorder()
+            recorder = AudioToTextRecorder(**{
+            'faster_whisper_vad_filter': False,
+            'spinner': False,
+            'use_microphone': False,
+            'model': self.args.model,
+            'enable_realtime_transcription': self.args.enable_realtime,
+            'realtime_model_type': self.args.realtime_model,
+        })
             recorder.start()
             recorder.stop()
             recorder.shutdown()
