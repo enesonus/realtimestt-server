@@ -8154,3 +8154,39 @@ EOFError
 2025-04-02 23:01:22.109 - RealTimeSTT: realtimestt - DEBUG - Terminating transcription process
 2025-04-02 23:01:22.496 - RealTimeSTT: realtimestt - DEBUG - Finishing realtime thread
 2025-04-02 23:01:22.530 - RealTimeSTT: realtimestt - DEBUG - Realtime text detected:  Hadi geri olur ki.
+2025-04-15 10:06:03.675 - RealTimeSTT: realtimestt - INFO - Starting RealTimeSTT
+2025-04-15 10:06:03.681 - RealTimeSTT: realtimestt - INFO - Initializing WebRTC voice with Sensitivity 3
+2025-04-15 10:06:03.681 - RealTimeSTT: realtimestt - DEBUG - WebRTC VAD voice activity detection engine initialized successfully
+2025-04-15 10:06:04.493 - RealTimeSTT: realtimestt - DEBUG - Silero VAD voice activity detection engine initialized successfully
+2025-04-15 10:06:04.494 - RealTimeSTT: realtimestt - DEBUG - Starting realtime worker
+2025-04-15 10:06:04.494 - RealTimeSTT: realtimestt - DEBUG - Waiting for main transcription model to start
+2025-04-15 10:06:28.318 - RealTimeSTT: realtimestt - INFO - Starting RealTimeSTT
+2025-04-15 10:06:28.321 - RealTimeSTT: realtimestt - INFO - Initializing WebRTC voice with Sensitivity 3
+2025-04-15 10:06:28.321 - RealTimeSTT: realtimestt - DEBUG - WebRTC VAD voice activity detection engine initialized successfully
+2025-04-15 10:06:28.706 - RealTimeSTT: realtimestt - DEBUG - Silero VAD voice activity detection engine initialized successfully
+2025-04-15 10:06:28.707 - RealTimeSTT: realtimestt - DEBUG - Starting realtime worker
+2025-04-15 10:06:28.707 - RealTimeSTT: realtimestt - DEBUG - Waiting for main transcription model to start
+2025-04-15 10:06:29.851 - RealTimeSTT: realtimestt - DEBUG - Main transcription model ready
+2025-04-15 10:06:29.851 - RealTimeSTT: realtimestt - DEBUG - RealtimeSTT initialization completed successfully
+2025-04-15 10:06:29.851 - RealTimeSTT: realtimestt - INFO - recording started
+2025-04-15 10:06:29.851 - RealTimeSTT: realtimestt - INFO - State changed from 'inactive' to 'recording'
+2025-04-15 10:06:29.851 - RealTimeSTT: realtimestt - INFO - Attempted to stop recording too soon after starting.
+2025-04-15 10:06:29.851 - RealTimeSTT: realtimestt - DEBUG - Finishing recording thread
+2025-04-15 10:06:29.860 - RealTimeSTT: realtimestt - DEBUG - Terminating reader process
+2025-04-15 10:06:29.860 - RealTimeSTT: realtimestt - DEBUG - Terminating transcription process
+2025-04-15 10:06:30.230 - RealTimeSTT: realtimestt - DEBUG - Finishing realtime thread
+2025-04-15 10:06:52.378 - RealTimeSTT: realtimestt - INFO - Starting RealTimeSTT
+2025-04-15 10:06:52.381 - RealTimeSTT: realtimestt - INFO - Initializing WebRTC voice with Sensitivity 3
+2025-04-15 10:06:52.381 - RealTimeSTT: realtimestt - DEBUG - WebRTC VAD voice activity detection engine initialized successfully
+2025-04-15 10:06:52.759 - RealTimeSTT: realtimestt - DEBUG - Silero VAD voice activity detection engine initialized successfully
+2025-04-15 10:06:52.759 - RealTimeSTT: realtimestt - DEBUG - Starting realtime worker
+2025-04-15 10:06:52.759 - RealTimeSTT: realtimestt - DEBUG - Waiting for main transcription model to start
+2025-04-15 10:06:54.151 - RealTimeSTT: realtimestt - DEBUG - Main transcription model ready
+2025-04-15 10:06:54.151 - RealTimeSTT: realtimestt - DEBUG - RealtimeSTT initialization completed successfully
+2025-04-15 10:06:54.152 - RealTimeSTT: realtimestt - INFO - recording started
+2025-04-15 10:06:54.152 - RealTimeSTT: realtimestt - INFO - State changed from 'inactive' to 'recording'
+2025-04-15 10:06:54.152 - RealTimeSTT: realtimestt - INFO - Attempted to stop recording too soon after starting.
+2025-04-15 10:06:54.152 - RealTimeSTT: realtimestt - DEBUG - Finishing recording thread
+2025-04-15 10:06:54.158 - RealTimeSTT: realtimestt - DEBUG - Terminating reader process
+2025-04-15 10:06:54.158 - RealTimeSTT: realtimestt - DEBUG - Terminating transcription process
+2025-04-15 10:06:54.464 - RealTimeSTT: realtimestt - DEBUG - Finishing realtime thread

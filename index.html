@@ -199,14 +199,6 @@
 						placeholder="Loading WebSocket URL..."
 					/>
 				</div>
-				<!-- Voice selection -->
-				<div class="url-input">
-					<label for="voiceGender">Voice Gender:</label>
-					<select id="voiceGender">
-						<option value="female">Female</option>
-						<option value="male">Male</option>
-					</select>
-				</div>
 			</div>
 
 			<button id="startButton" onclick="startRecording()">
@@ -235,7 +227,6 @@
 			const startButton = document.getElementById("startButton");
 			const stopButton = document.getElementById("stopButton");
 			const dataUrlInput = document.getElementById("dataUrl");
-			const voiceGenderSelect = document.getElementById("voiceGender");
 			const logList = document.getElementById("log");
 			const spinner = document.getElementById("spinner");
 			let isInitialized = false;
@@ -352,10 +343,6 @@
 					dataSocket.onopen = () => {
 						addLogEntry("Connected to data WebSocket");
 						console.log("Connected to data WebSocket.");
-
-						// Send initial voice gender preference
-						const voiceGender = voiceGenderSelect.value;
-						dataSocket.send(JSON.stringify({ voice_gender: voiceGender }));
 					};
 
 					dataSocket.onmessage = (event) => {
@@ -427,15 +414,6 @@
 						updateUIState("error");
 						reject(error);
 					};
-
-					// Handle voice gender changes
-					voiceGenderSelect.addEventListener("change", () => {
-						if (dataSocket && dataSocket.readyState === WebSocket.OPEN) {
-							const voiceGender = voiceGenderSelect.value;
-							dataSocket.send(JSON.stringify({ voice_gender: voiceGender }));
-							addLogEntry(`Voice gender changed to: ${voiceGender}`);
-						}
-					});
 
 					// Set a timeout for initialization
 					setTimeout(() => {
