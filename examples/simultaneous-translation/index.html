@@ -252,12 +252,29 @@
 				addLogEntry("TTS AudioContext is suspended. Will attempt resume on user interaction.");
 			}
 
-			// Function to play TTS audio using Web Audio API
-			async function playTTSAudio(audioBase64, mimeType = 'audio/mpeg') {
+			// Audio queue system
+			const audioQueue = [];
+			let isPlaying = false;
+
+			// Function to process the audio queue
+			function processAudioQueue() {
+				if (audioQueue.length === 0 || isPlaying) {
+					return;
+				}
+
+				isPlaying = true;
+				const nextAudio = audioQueue.shift();
+				playTTSAudioFromQueue(nextAudio.audioBase64, nextAudio.mimeType);
+			}
+
+			// Function to play TTS audio from queue
+			async function playTTSAudioFromQueue(audioBase64, mimeType = 'audio/mpeg') {
 				if (!ttsAudioContext || ttsAudioContext.state !== 'running') {
 					addLogEntry(`Cannot play TTS audio: AudioContext is ${ttsAudioContext ? ttsAudioContext.state : 'not initialized'}. Requires user interaction.`, "error");
 					console.warn("TTS AudioContext not running. Playback skipped.");
-					return; // Don't attempt playback if context isn't running
+					isPlaying = false;
+					processAudioQueue(); // Try next in queue
+					return;
 				}
 
 				try {
@@ -279,17 +296,30 @@
 						source.connect(ttsAudioContext.destination);       // Connect to output
 						source.onended = () => {
 							addLogEntry("TTS audio playback finished");
+							isPlaying = false;
+							setTimeout(processAudioQueue, 50); // Process next audio with a small delay
 						};
 						source.start(0);                                   // Start playback immediately
 						addLogEntry("TTS playback started.");
 					}, (error) => {
 						console.error("Error decoding audio data:", error);
 						addLogEntry(`Error decoding TTS audio: ${error.message}`, "error");
+						isPlaying = false;
+						processAudioQueue(); // Try next in queue
 					});
 				} catch (error) {
 					console.error("Error processing TTS audio:", error);
 					addLogEntry(`Error processing TTS audio: ${error.message}`, "error");
+					isPlaying = false;
+					processAudioQueue(); // Try next in queue
 				}
+			}
+
+			// Function to add TTS audio to queue
+			function playTTSAudio(audioBase64, mimeType = 'audio/mpeg') {
+				audioQueue.push({ audioBase64, mimeType });
+				addLogEntry(`Added TTS audio to queue (${audioQueue.length} item(s) in queue)`);
+				processAudioQueue();
 			}
 
 			// Add log entry function
