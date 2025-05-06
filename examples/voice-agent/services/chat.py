@@ -1,6 +1,6 @@
 import time
 from openai import OpenAI
-from config import GROQ_API_KEY, OPENAI_API_KEY, CHAT_MODEL
+from config import OPENAI_API_KEY, CHAT_MODEL
 
 
 class ChatService:
@@ -39,7 +39,8 @@ class ChatService:
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a helpful voice assistant. Respond to the user's query concisely and naturally, as if you were speaking. Keep your responses brief. You only speak english"
+                        "content": """You are a helpful voice assistant. Respond to the user's query concisely and naturally, as if you were speaking.
+                        Keep your responses very brief. Your responses are maximum 30 words, you can not exceed this. You only speak english"""
                     },
                     {
                         "role": "user",
