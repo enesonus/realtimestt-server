@@ -15,7 +15,7 @@ from RealtimeSTT import AudioToTextRecorder
 from config import parse_args, PROVIDER
 from utils import decode_and_resample, preprocess_realtime_text
 from models import ClientSession
-from services.translation import TranslationService
+from services.chat import ChatService
 from services.tts import TTSService
 
 # Configure logging
@@ -51,7 +51,7 @@ class AudioServer:
         recorder.shutdown()
         
         # Initialize services
-        self.translation_service = TranslationService()
+        self.chat_service = ChatService()
         if self.args.enable_tts:
             self.tts_service = TTSService(PROVIDER)
             print(f"TTS is enabled with provider: {PROVIDER}")
@@ -261,10 +261,10 @@ class AudioServer:
                 try:
                     full_sentence = client.recorder.text()
                     if full_sentence and self.main_loop is not None:
-                        # Translate the text
-                        translated_text, translation_time = self.translation_service.translate(full_sentence)
-                        print(f"Original text: {full_sentence}\nTranslated text: {translated_text}")
-                        print(f"\033[92mTime taken for translation: {translation_time:.2f}s\033[92m")
+                        # Get chat response
+                        response_text, response_time = self.chat_service.get_chat_response(full_sentence)
+                        print(f"User input: {full_sentence}\nAgent response: {response_text}")
+                        print(f"\033[92mTime taken for chat response: {response_time:.2f}s\033[92m")
 
                         # Calculate latency if we have a VAD stop time
                         latency_ms = None
@@ -276,18 +276,18 @@ class AudioServer:
                         asyncio.run_coroutine_threadsafe(
                             self.send_to_client(client_id, {
                                 'type': 'fullSentence',
-                                'text': translated_text,
+                                'text': response_text,
                                 'latency_ms': latency_ms
                             }), self.main_loop)
 
                         # Generate and send TTS if enabled
                         if self.args.enable_tts:
                             asyncio.run_coroutine_threadsafe(
-                                self.generate_and_send_tts(client_id, translated_text),
+                                self.generate_and_send_tts(client_id, response_text),
                                 self.main_loop
                             )
 
-                        print(f"\rClient {client_id} Sentence: {translated_text} \033[92m(Latency: {latency_ms}ms)\033[92m")
+                        print(f"\rClient {client_id} Agent Response: {response_text} \033[92m(Latency: {latency_ms}ms)\033[92m")
                 except Exception as e:
                     print(f"Error in recorder thread for client {client_id}: {e}")
                     continue

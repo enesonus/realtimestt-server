@@ -11,8 +11,7 @@ GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 DEEPINFRA_API_KEY = os.environ.get('DEEPINFRA_API_KEY')
 PROVIDER = os.environ.get('PROVIDER', 'groq')
-TARGET_LANGUAGE = os.environ.get('TARGET_LANGUAGE', 'English')
-TRANSLATION_MODEL = os.environ.get('TRANSLATION_MODEL', 'llama-3.3-70b-versatile')
+CHAT_MODEL = os.environ.get('CHAT_MODEL', 'gpt-4.1-mini')
 
 def parse_args():
     parser = argparse.ArgumentParser(

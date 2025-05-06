@@ -1,11 +1,11 @@
 # RealtimeSTT Server
 
-A real-time speech-to-text (STT) server that transcribes audio in real-time, translates it from Turkish to English, and optionally converts it back to speech using text-to-speech (TTS).
+A real-time speech-to-text (STT) server that transcribes audio in real-time, generates a chat response, and optionally converts it back to speech using text-to-speech (TTS).
 
 ## Features
 
 - Real-time audio transcription using Whisper models
-- Translation from Turkish to English using Groq's API
+- Conversational responses using a chat model via Groq's API
 - Optional text-to-speech conversion
 - WebSocket communication for real-time updates
 - Voice Activity Detection (VAD) for better speech recognition
@@ -20,7 +20,7 @@ RealtimeSTT_server/
 ├── server.py              # Main server implementation
 ├── utils.py               # Utility functions for audio processing
 ├── services/
-│   ├── translation.py     # Translation service using Groq API
+│   ├── chat.py            # Chat service using Groq API
 │   └── tts.py             # Text-to-speech service
 └── index.html             # Web client for interacting with the service
 ```
@@ -55,12 +55,12 @@ python server.py [options]
 
 1. Start the server with desired options
 2. Access the web client using the provided URL
-3. Speak into your microphone to see real-time transcription and translation
+3. Speak into your microphone to see real-time transcription and the agent's response
 
 ## API Keys
 
 The server requires API keys for:
 - Ngrok (for tunneling)
-- Groq (for translation and TTS)
+- Groq (for chat responses and TTS)
 
 Edit the `config.py` file to update these keys or set them as environment variables.
