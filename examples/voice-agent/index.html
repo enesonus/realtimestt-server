@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Browser STT Client</title>
+		<style>
+			body {
+				background-color: #f4f4f9;
+				color: #333;
+				font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				/* height: 100vh;*/
+				margin: 0;
+			}
+			#container {
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				width: 100%;
+				max-width: 700px;
+				padding: 20px;
+				box-sizing: border-box;
+				gap: 20px; /* Add more vertical space between items */
+				/*height: 90%;  Fixed height to prevent layout shift */
+			}
+			#status {
+				color: #0056b3;
+				font-size: 20px;
+				text-align: center;
+			}
+			#transcriptionContainer {
+				height: 150px; /* Fixed height for approximately 3 lines of text */
+				overflow-y: auto;
+				width: 100%;
+				padding: 10px;
+				box-sizing: border-box;
+				background-color: #f9f9f9;
+				border: 1px solid #ddd;
+				border-radius: 5px;
+			}
+			#transcription {
+				font-size: 18px;
+				line-height: 1.6;
+				color: #333;
+				word-wrap: break-word;
+			}
+			#fullTextContainer {
+				height: 175px; /* Fixed height to prevent layout shift */
+				overflow-y: auto;
+				width: 100%;
+				padding: 10px;
+				box-sizing: border-box;
+				background-color: #f9f9f9;
+				border: 1px solid #ddd;
+				border-radius: 5px;
+			}
+			#fullText {
+				color: #4caf50;
+				font-size: 18px;
+				font-weight: 600;
+				word-wrap: break-word;
+			}
+			.last-word {
+				color: #007bff;
+				font-weight: 600;
+			}
+			button {
+				padding: 12px 24px;
+				font-size: 16px;
+				cursor: pointer;
+				border: none;
+				border-radius: 5px;
+				margin: 5px;
+				transition: background-color 0.3s ease;
+				color: #fff;
+				background-color: #0056b3;
+				box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+			}
+			button:hover {
+				background-color: #007bff;
+			}
+			button:disabled {
+				background-color: #cccccc;
+				cursor: not-allowed;
+			}
+			/* New styles for the log box */
+			#logContainer {
+				height: 120px;
+				overflow-y: auto;
+				width: 100%;
+				padding: 10px;
+				box-sizing: border-box;
+				background-color: #f0f0f0;
+				border: 1px solid #ddd;
+				border-radius: 5px;
+				font-family: monospace;
+				font-size: 14px;
+			}
+			#log {
+				margin: 0;
+				padding: 0;
+				list-style-type: none;
+			}
+			#log li {
+				margin-bottom: 3px;
+				padding: 2px 5px;
+				border-bottom: 1px solid #eee;
+			}
+			#log .event {
+				color: #666;
+			}
+			#log .latency {
+				color: #e67e22;
+				font-weight: bold;
+			}
+			#log .error {
+				color: #e74c3c;
+			}
+			/* New styles for the URL input fields */
+			.url-inputs {
+				display: flex;
+				flex-direction: column;
+				width: 100%;
+				gap: 10px;
+				margin-bottom: 10px;
+			}
+			.url-input {
+				display: flex;
+				flex-direction: column;
+				width: 100%;
+			}
+			.url-input label {
+				margin-bottom: 5px;
+				font-weight: bold;
+			}
+			.url-input input,
+			.url-input select {
+				padding: 10px;
+				border: 1px solid #ddd;
+				border-radius: 5px;
+				font-size: 14px;
+				width: 100%;
+				box-sizing: border-box;
+			}
+			.url-input select {
+				background-color: white;
+				cursor: pointer;
+			}
+			.url-input select:hover {
+				border-color: #007bff;
+			}
+			/* Spinner styles */
+			.spinner {
+				display: inline-block;
+				width: 20px;
+				height: 20px;
+				margin-left: 10px;
+				border: 3px solid #f3f3f3;
+				border-top: 3px solid #3498db;
+				border-radius: 50%;
+				animation: spin 1s linear infinite;
+				vertical-align: middle;
+			}
+
+			@keyframes spin {
+				0% {
+					transform: rotate(0deg);
+				}
+				100% {
+					transform: rotate(360deg);
+				}
+			}
+
+			.status-container {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				margin-bottom: 20px;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="container">
+			<div class="status-container">
+				<div id="status">Press "Start Recording"...</div>
+				<div id="spinner" class="spinner" style="display: none"></div>
+			</div>
+
+			<!-- New URL input fields -->
+			<div class="url-inputs">
+				<div class="url-input">
+					<label for="dataUrl">Data WebSocket URL:</label>
+					<input
+						type="text"
+						id="dataUrl"
+						placeholder="Loading WebSocket URL..."
+					/>
+				</div>
+				<!-- Voice selection -->
+				<div class="url-input">
+					<label for="voiceGender">Voice Gender:</label>
+					<select id="voiceGender">
+						<option value="female">Female</option>
+						<option value="male">Male</option>
+					</select>
+				</div>
+			</div>
+
+			<button id="startButton" onclick="startRecording()">
+				Start Recording
+			</button>
+			<button id="stopButton" onclick="stopRecording()" disabled>
+				Stop Recording
+			</button>
+			<div id="transcriptionContainer">
+				<div id="transcription" class="realtime"></div>
+			</div>
+			<div id="fullTextContainer">
+				<div id="fullText"></div>
+			</div>
+
+			<!-- New logging container -->
+			<div id="logContainer">
+				<ul id="log"></ul>
+			</div>
+		</div>
+
+		<script>
+			const statusDiv = document.getElementById("status");
+			const transcriptionDiv = document.getElementById("transcription");
+			const fullTextDiv = document.getElementById("fullText");
+			const startButton = document.getElementById("startButton");
+			const stopButton = document.getElementById("stopButton");
+			const dataUrlInput = document.getElementById("dataUrl");
+			const voiceGenderSelect = document.getElementById("voiceGender");
+			const logList = document.getElementById("log");
+			const spinner = document.getElementById("spinner");
+			let isInitialized = false;
+			let userInteracted = false; // Flag for user interaction
+
+			let dataSocket;
+			let audioContext;
+			let mediaStream;
+			let mediaProcessor;
+
+			// Audio playback context for TTS - initialize immediately
+			let ttsAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+			if (ttsAudioContext.state === 'suspended') {
+				addLogEntry("TTS AudioContext is suspended. Will attempt resume on user interaction.");
+			}
+
+			// Audio queue system
+			const audioQueue = [];
+			let isPlaying = false;
+
+			// Function to process the audio queue
+			function processAudioQueue() {
+				if (audioQueue.length === 0 || isPlaying) {
+					return;
+				}
+
+				isPlaying = true;
+				const nextAudio = audioQueue.shift();
+				playTTSAudioFromQueue(nextAudio.audioBase64, nextAudio.mimeType);
+			}
+
+			// Function to play TTS audio from queue
+			async function playTTSAudioFromQueue(audioBase64, mimeType = 'audio/mpeg') {
+				if (!ttsAudioContext || ttsAudioContext.state !== 'running') {
+					addLogEntry(`Cannot play TTS audio: AudioContext is ${ttsAudioContext ? ttsAudioContext.state : 'not initialized'}. Requires user interaction.`, "error");
+					console.warn("TTS AudioContext not running. Playback skipped.");
+					isPlaying = false;
+					processAudioQueue(); // Try next in queue
+					return;
+				}
+
+				try {
+					addLogEntry(`Decoding and playing TTS audio (${mimeType})`);
+
+					// Decode Base64 string to ArrayBuffer
+					const byteCharacters = atob(audioBase64);
+					const byteNumbers = new Array(byteCharacters.length);
+					for (let i = 0; i < byteCharacters.length; i++) {
+						byteNumbers[i] = byteCharacters.charCodeAt(i);
+					}
+					const byteArray = new Uint8Array(byteNumbers);
+					const arrayBuffer = byteArray.buffer;
+
+					// Decode audio data using the AudioContext
+					ttsAudioContext.decodeAudioData(arrayBuffer, (audioBuffer) => {
+						const source = ttsAudioContext.createBufferSource(); // Create source node
+						source.buffer = audioBuffer;                       // Set buffer
+						source.connect(ttsAudioContext.destination);       // Connect to output
+						source.onended = () => {
+							addLogEntry("TTS audio playback finished");
+							isPlaying = false;
+							setTimeout(processAudioQueue, 50); // Process next audio with a small delay
+						};
+						source.start(0);                                   // Start playback immediately
+						addLogEntry("TTS playback started.");
+					}, (error) => {
+						console.error("Error decoding audio data:", error);
+						addLogEntry(`Error decoding TTS audio: ${error.message}`, "error");
+						isPlaying = false;
+						processAudioQueue(); // Try next in queue
+					});
+				} catch (error) {
+					console.error("Error processing TTS audio:", error);
+					addLogEntry(`Error processing TTS audio: ${error.message}`, "error");
+					isPlaying = false;
+					processAudioQueue(); // Try next in queue
+				}
+			}
+
+			// Function to add TTS audio to queue
+			function playTTSAudio(audioBase64, mimeType = 'audio/mpeg') {
+				audioQueue.push({ audioBase64, mimeType });
+				addLogEntry(`Added TTS audio to queue (${audioQueue.length} item(s) in queue)`);
+				processAudioQueue();
+			}
+
+			// Add log entry function
+			function addLogEntry(message, type = "event") {
+				const entry = document.createElement("li");
+				entry.className = type;
+
+				// Add timestamp to log entry
+				const now = new Date();
+				const timestamp = now.toLocaleTimeString("en-US", {
+					hour12: false,
+					hour: "2-digit",
+					minute: "2-digit",
+					second: "2-digit",
+					fractionalSecondDigits: 3,
+				});
+
+				entry.textContent = `[${timestamp}] ${message}`;
+				logList.appendChild(entry);
+
+				// Auto-scroll to bottom
+				const logContainer = document.getElementById("logContainer");
+				logContainer.scrollTop = logContainer.scrollHeight;
+			}
+
+			function updateUIState(state) {
+				switch (state) {
+					case "initial":
+						startButton.disabled = false;
+						stopButton.disabled = true;
+						spinner.style.display = "none";
+						statusDiv.textContent = "Press 'Start Recording'...";
+						break;
+					case "initializing":
+						startButton.disabled = true;
+						stopButton.disabled = true;
+						spinner.style.display = "inline-block";
+						statusDiv.textContent = "Initializing speech recognition...";
+						break;
+					case "recording":
+						startButton.disabled = true;
+						stopButton.disabled = false;
+						spinner.style.display = "none";
+						statusDiv.textContent = "Recording...";
+						break;
+					case "error":
+						startButton.disabled = false;
+						stopButton.disabled = true;
+						spinner.style.display = "none";
+						break;
+				}
+			}
+
+			// Connect to the data WebSocket
+			function connectToDataSocket() {
+				return new Promise((resolve, reject) => {
+					const dataURL = dataUrlInput.value.trim();
+					dataSocket = new WebSocket(dataURL);
+
+					dataSocket.onopen = () => {
+						addLogEntry("Connected to data WebSocket");
+						console.log("Connected to data WebSocket.");
+
+						// Send initial voice gender preference
+						const voiceGender = voiceGenderSelect.value;
+						dataSocket.send(JSON.stringify({ voice_gender: voiceGender }));
+					};
+
+					dataSocket.onmessage = (event) => {
+						try {
+							const message = JSON.parse(event.data);
+
+							if (message.type === "init_complete") {
+								isInitialized = true;
+								updateUIState("recording");
+								addLogEntry("Server initialization complete");
+								resolve();
+							} else if (message.type === "realtime") {
+								// Show real-time transcription with the last word in bold, orange
+								let words = message.text.split(" ");
+								let lastWord = words.pop();
+								transcriptionDiv.innerHTML = `${words.join(
+									" "
+								)} <span class="last-word">${lastWord}</span>`;
+
+								// Auto-scroll to the bottom of the transcription container
+								const transcriptionContainer = document.getElementById(
+									"transcriptionContainer"
+								);
+								transcriptionContainer.scrollTop =
+									transcriptionContainer.scrollHeight;
+							} else if (message.type === "fullSentence") {
+								// Accumulate the final transcription in green
+								fullTextDiv.innerHTML += message.text + " ";
+								transcriptionDiv.innerHTML = message.text;
+
+								// Log latency if available
+								if (message.latency_ms !== undefined) {
+									addLogEntry(
+										`Processed: "${message.text}" (Latency: ${message.latency_ms}ms)`,
+										"latency"
+									);
+								} else {
+									addLogEntry(`Processed: "${message.text}"`, "latency");
+								}
+
+								// Scroll to the bottom of fullTextContainer when new text is added
+								const fullTextContainer =
+									document.getElementById("fullTextContainer");
+								fullTextContainer.scrollTop = fullTextContainer.scrollHeight;
+							} else if (message.type === "tts_audio") {
+								// Play TTS audio when received
+								playTTSAudio(message.audio, message.mime_type);
+							} else {
+								addLogEntry(`Event: ${message.type}`);
+							}
+						} catch (e) {
+							console.error("Error parsing message:", e);
+							addLogEntry(`Error parsing message: ${e.message}`, "error");
+							reject(e);
+						}
+					};
+
+					dataSocket.onclose = () => {
+						statusDiv.textContent = "Disconnected from STT server.";
+						addLogEntry("Disconnected from data WebSocket");
+						updateUIState("initial");
+						isInitialized = false;
+					};
+
+					dataSocket.onerror = (error) => {
+						console.error("WebSocket error:", error);
+						statusDiv.textContent = "Error connecting to the STT server.";
+						addLogEntry(`WebSocket error: ${error}`, "error");
+						updateUIState("error");
+						reject(error);
+					};
+
+					// Handle voice gender changes
+					voiceGenderSelect.addEventListener("change", () => {
+						if (dataSocket && dataSocket.readyState === WebSocket.OPEN) {
+							const voiceGender = voiceGenderSelect.value;
+							dataSocket.send(JSON.stringify({ voice_gender: voiceGender }));
+							addLogEntry(`Voice gender changed to: ${voiceGender}`);
+						}
+					});
+
+					// Set a timeout for initialization
+					setTimeout(() => {
+						if (!isInitialized) {
+							reject(new Error("Server initialization timeout"));
+							dataSocket.close();
+						}
+					}, 30000); // 30 second timeout
+				});
+			}
+
+			// Start recording audio from the microphone
+			async function startRecording() {
+				try {
+					updateUIState("initializing");
+					addLogEntry("Starting recording");
+
+					// Create AudioContext with 16kHz sample rate
+					audioContext = new AudioContext({ sampleRate: 16000 });
+
+					// --- Resume TTS AudioContext on user interaction ---
+					if (ttsAudioContext && ttsAudioContext.state === 'suspended') {
+						ttsAudioContext.resume().then(() => {
+							addLogEntry('TTS AudioContext successfully resumed.');
+							console.log('TTS AudioContext resumed.');
+						}).catch(e => {
+							addLogEntry(`Error resuming TTS AudioContext: ${e.message}`, "error");
+							console.error('Error resuming TTS AudioContext:', e);
+						});
+					}
+					// --- End Resume TTS AudioContext ---
+
+					mediaStream = await navigator.mediaDevices.getUserMedia({
+						audio: {
+							sampleRate: 16000,
+							channelCount: 1,
+							echoCancellation: true,
+							noiseSuppression: true,
+							autoGainControl: true,
+						},
+					});
+					const input = audioContext.createMediaStreamSource(mediaStream);
+
+					// Set up processor for audio chunks
+					mediaProcessor = audioContext.createScriptProcessor(1024, 1, 1);
+					mediaProcessor.onaudioprocess = (event) => {
+						const audioData = event.inputBuffer.getChannelData(0);
+						sendAudioChunk(audioData, audioContext.sampleRate);
+					};
+
+					input.connect(mediaProcessor);
+					mediaProcessor.connect(audioContext.destination);
+
+					await connectToDataSocket();
+				} catch (error) {
+					console.error("Error accessing microphone:", error);
+					statusDiv.textContent = "Error accessing microphone.";
+					addLogEntry(`Error accessing microphone: ${error.message}`, "error");
+					updateUIState("error");
+					stopRecording();
+				}
+			}
+
+			// Stop recording audio and close resources
+			function stopRecording() {
+				if (mediaProcessor && audioContext) {
+					mediaProcessor.disconnect();
+					audioContext.close();
+				}
+
+				if (mediaStream) {
+					mediaStream.getTracks().forEach((track) => track.stop());
+				}
+
+				if (dataSocket) {
+					dataSocket.close();
+				}
+
+				updateUIState("initial");
+				isInitialized = false;
+				addLogEntry("Stopped recording");
+			}
+
+			// Send an audio chunk to the server
+			function sendAudioChunk(audioData, sampleRate) {
+				if (dataSocket && dataSocket.readyState === WebSocket.OPEN) {
+					const float32Array = new Float32Array(audioData);
+					const pcm16Data = new Int16Array(float32Array.length);
+
+					for (let i = 0; i < float32Array.length; i++) {
+						pcm16Data[i] = Math.max(-1, Math.min(1, float32Array[i])) * 0x7fff;
+					}
+
+					const metadata = JSON.stringify({ sampleRate });
+					const metadataLength = new Uint32Array([metadata.length]);
+					const metadataBuffer = new TextEncoder().encode(metadata);
+
+					const message = new Uint8Array(
+						metadataLength.byteLength +
+							metadataBuffer.byteLength +
+							pcm16Data.byteLength
+					);
+
+					message.set(new Uint8Array(metadataLength.buffer), 0);
+					message.set(metadataBuffer, metadataLength.byteLength);
+					message.set(
+						new Uint8Array(pcm16Data.buffer),
+						metadataLength.byteLength + metadataBuffer.byteLength
+					);
+
+					dataSocket.send(message);
+				}
+			}
+
+			// Add an initial log entry when page loads
+			addLogEntry("Browser STT Client initialized");
+
+			// Fetch WebSocket URL when page loads
+			fetch("/ws-url")
+				.then((response) => response.json())
+				.then((data) => {
+					document.getElementById("dataUrl").value = data.url;
+				})
+				.catch((error) => {
+					console.error("Error fetching WebSocket URL:", error);
+					document.getElementById("dataUrl").value =
+						"Error loading WebSocket URL";
+				});
+		</script>
+	</body>
+</html>
