@@ -9,6 +9,13 @@ class ChatService:
     def __init__(self):
         self.api_key = OPENAI_API_KEY
         self.client = None
+        self.history = [
+            {
+                "role": "system",
+                "content": """You are a helpful voice assistant. Respond to the user's query concisely and naturally, as if you were speaking.
+                Keep your responses brief. """
+            }
+        ]
         self._initialize_client()
     
     def _initialize_client(self):
@@ -33,20 +40,12 @@ class ChatService:
             
         start_time = time.time()
         
+        self.history.append({"role": "user", "content": text})
+        
         try:
             completion = self.client.chat.completions.create(
                 model=CHAT_MODEL,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": """You are a helpful voice assistant. Respond to the user's query concisely and naturally, as if you were speaking.
-                        Keep your responses very brief. You only speak english"""
-                    },
-                    {
-                        "role": "user",
-                        "content": text
-                    }
-                ],
+                messages=self.history,
                 temperature=0.7,
                 max_tokens=2048,
                 top_p=1.0,
@@ -55,6 +54,8 @@ class ChatService:
             
             response_text = completion.choices[0].message.content
             time_taken = time.time() - start_time
+            
+            self.history.append({"role": "assistant", "content": response_text})
             
             return response_text, time_taken
             
