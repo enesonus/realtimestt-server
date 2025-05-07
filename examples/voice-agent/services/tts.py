@@ -122,3 +122,48 @@ class TTSService:
         ) as response:
             response.stream_to_file(output_path)
         return output_path
+
+    def generate_audio_stream(self, text: str, voice_gender: str):
+        """
+        Generate audio and stream it as it comes from the OpenAI API.
+        This method can only be used when the provider is 'openai'.
+
+        Args:
+            text: The text to convert to speech.
+            voice_gender: Preferred gender of the voice ("male" or "female").
+
+        Yields:
+            bytes: Chunks of audio data (MP3 format).
+        
+        Raises:
+            ValueError: If the provider is not 'openai'.
+            # Re-raises exceptions from the OpenAI API client.
+        """
+        if self.provider != "openai":
+            raise ValueError("Streaming is only supported for the OpenAI TTS provider.")
+
+        if not self.client:
+            # This ensures the client is initialized, using self.provider.
+            # If self.provider is "openai", it will set up the OpenAI client.
+            self._initialize_client()
+
+        # Voice selection specific to OpenAI, as in generate_audio_openai
+        tts_name = "ash" if voice_gender == "male" else "sage"
+        model_name = "gpt-4o-mini-tts"  # Consistent with generate_audio_openai
+        audio_format = "mp3"          # Consistent with generate_audio_openai
+
+        try:
+            # Create a streaming response context manager
+            streaming_response_context = self.client.audio.speech.with_streaming_response.create(
+                model=model_name,
+                voice=tts_name,
+                input=text,
+                response_format=audio_format
+            )
+            # Asynchronously enter the context and iterate over byte chunks
+            with streaming_response_context as response:
+                for chunk in response.iter_bytes(2048):
+                    yield chunk
+        except Exception as e:
+            print(f"OpenAI TTS streaming error: {e}") # Log the error
+            raise # Re-raise to allow the caller to handle

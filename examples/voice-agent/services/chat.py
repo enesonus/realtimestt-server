@@ -40,7 +40,7 @@ class ChatService:
                     {
                         "role": "system",
                         "content": """You are a helpful voice assistant. Respond to the user's query concisely and naturally, as if you were speaking.
-                        Keep your responses very brief. Your responses are maximum 30 words, you can not exceed this. You only speak english"""
+                        Keep your responses very brief. You only speak english"""
                     },
                     {
                         "role": "user",

@@ -227,6 +227,7 @@
 			<div id="logContainer">
 				<ul id="log"></ul>
 			</div>
+			<audio id="ttsPlayer" style="display: none;"></audio>
 		</div>
 
 		<script>
@@ -241,6 +242,15 @@
 			const spinner = document.getElementById("spinner");
 			let isInitialized = false;
 			let userInteracted = false; // Flag for user interaction
+
+			// --- TTS Streaming Variables ---
+			const ttsPlayer = document.getElementById('ttsPlayer');
+			let mediaSource = null;
+			let sourceBuffer = null;
+			let audioChunkQueue = [];
+			let isStreamActive = false;
+			let expectedMimeType = '';
+			// --- End TTS Streaming Variables ---
 
 			let dataSocket;
 			let audioContext;
@@ -393,7 +403,65 @@
 						try {
 							const message = JSON.parse(event.data);
 
-							if (message.type === "init_complete") {
+							// --- TTS Stream Handling ---
+							if (message.type === "tts_stream_start") {
+								addLogEntry(`TTS Stream Start received. Format: ${message.format}, Sample Rate: ${message.sample_rate}`);
+								
+								// 1. Always clean up any existing stream resources first.
+								// This also sets isStreamActive = false.
+								cleanupMediaSourceStream(); 
+								
+								// 2. Derive expectedMimeType
+								if (message.format === 'mp3') {
+									expectedMimeType = 'audio/mpeg';
+								} else if (message.format === 'opus') {
+									expectedMimeType = 'audio/opus'; 
+								} else if (message.format === 'wav') {
+									expectedMimeType = 'audio/wav';
+								} else {
+									expectedMimeType = message.format; // Fallback, might not be supported by MediaSource
+									addLogEntry(`Using fallback MIME type: ${expectedMimeType}. May not be supported.`, "event")
+								}
+								
+								// 3. Setup the new stream. 
+								// isStreamActive will be set to true inside setupMediaSourceAndPlay's 
+								// onSourceOpen callback if successful.
+								setupMediaSourceAndPlay(expectedMimeType);
+
+							} else if (message.type === "tts_audio_chunk") {
+								if (!isStreamActive) {
+									addLogEntry("Received audio chunk but stream is not active. Discarding.", "error");
+									return;
+								}
+								// addLogEntry("Received TTS audio chunk"); // Can be too verbose
+								try {
+									const byteCharacters = atob(message.audio);
+									const byteNumbers = new Array(byteCharacters.length);
+									for (let i = 0; i < byteCharacters.length; i++) {
+										byteNumbers[i] = byteCharacters.charCodeAt(i);
+									}
+									const byteArray = new Uint8Array(byteNumbers);
+									appendChunkToSourceBuffer(byteArray.buffer);
+								} catch (e) {
+									addLogEntry(`Error decoding/processing audio chunk: ${e.message}`, "error");
+									cleanupMediaSourceStream();
+								}
+							} else if (message.type === "tts_stream_end") {
+								if (!isStreamActive) {
+									addLogEntry("Received stream end but stream was not active.", "error");
+									return;
+								}
+								addLogEntry("TTS Stream End received.");
+								finalizeMediaSourceStream();
+								// isStreamActive will be set to false in finalize or cleanup
+
+							} else if (message.type === "tts_stream_error") {
+								addLogEntry(`TTS Stream Error: ${message.message}`, "error");
+								cleanupMediaSourceStream();
+							
+							// --- End TTS Stream Handling ---
+
+							} else if (message.type === "init_complete") {
 								isInitialized = true;
 								updateUIState("recording");
 								addLogEntry("Server initialization complete");
@@ -595,6 +663,238 @@
 					document.getElementById("dataUrl").value =
 						"Error loading WebSocket URL";
 				});
+
+			// --- TTS Streaming Functions ---
+			function setupMediaSourceAndPlay(mimeType) {
+				// Defensive check: If mediaSource object still exists, prior cleanup might have failed.
+				if (mediaSource) {
+                    addLogEntry("CRITICAL WARNING: `mediaSource` object was NOT null at start of `setupMediaSourceAndPlay`. Prior cleanup in `tts_stream_start` might have failed or was skipped. Forcing cleanup and aborting setup.", "error");
+                    cleanupMediaSourceStream(); // This nullifies mediaSource and sets isStreamActive=false.
+                    return; // Abort this setup.
+                }
+
+				mediaSource = new MediaSource();
+				ttsPlayer.src = URL.createObjectURL(mediaSource);
+				
+				addLogEntry(`MediaSource created. Player src: ${ttsPlayer.src}`);
+
+				const onSourceOpen = () => {
+
+					if (!mediaSource || mediaSource.readyState !== 'open') { 
+						addLogEntry("MediaSource became null or closed before sourceopen could complete.", "error");
+						// isStreamActive should still be false or cleanupMediaSourceStream would have set it
+						return;
+					}
+					try {
+						sourceBuffer = mediaSource.addSourceBuffer(mimeType);
+
+						// ***** Stream is now officially active and ready for chunks *****
+						isStreamActive = true; 
+						addLogEntry("SourceBuffer created. Stream is now flagged ACTIVE.");
+
+						sourceBuffer.addEventListener('updateend', onSourceBufferUpdateEnd);
+						sourceBuffer.addEventListener('error', onSourceBufferError);
+						sourceBuffer.addEventListener('abort', onSourceBufferAbort);
+						
+						if (audioChunkQueue.length > 0) {
+							addLogEntry(`Processing ${audioChunkQueue.length} pre-queued chunks after sourceBuffer ready.`);
+							appendNextChunkFromQueue();
+						}
+						
+						if (ttsPlayer.paused) {
+							ttsPlayer.play().then(() => {
+								addLogEntry("TTS Player play() initiated after sourceBuffer ready.");
+							}).catch(e => {
+								addLogEntry(`TTS Player play() failed after sourceBuffer ready: ${e.message}. User interaction might be needed.`, "error");
+							});
+						}
+
+					} catch (e) {
+						addLogEntry(`Error in sourceopen (addSourceBuffer): ${e.message}`, "error");
+						cleanupMediaSourceStream(); // This sets isStreamActive = false
+					}
+				};
+				
+				const onSourceBufferUpdateEnd = () => {
+					// addLogEntry("SourceBuffer updateend."); // Verbose
+					appendNextChunkFromQueue(); // Try to append next chunk if any
+				};
+
+				const onSourceBufferError = (e) => {
+					addLogEntry(`SourceBuffer error: ${JSON.stringify(e)}`, "error");
+					cleanupMediaSourceStream();
+				};
+				const onSourceBufferAbort = (e) => {
+					addLogEntry(`SourceBuffer abort: ${JSON.stringify(e)}`, "event");
+					cleanupMediaSourceStream(); // Abort usually means something went wrong
+				};
+				
+				const onMediaSourceEnded = () => {
+					addLogEntry('MediaSource sourceended event.');
+				};
+				const onMediaSourceClosed = () => {
+					addLogEntry('MediaSource sourceclose event.');
+				};
+				const onMediaSourceError = (e) => {
+					addLogEntry(`MediaSource error event: ${JSON.stringify(e)}`, 'error');
+					cleanupMediaSourceStream(); // This sets isStreamActive = false
+				};
+
+				mediaSource.addEventListener('sourceopen', onSourceOpen, { once: true });
+				mediaSource.addEventListener('sourceended', onMediaSourceEnded);
+				mediaSource.addEventListener('sourceclose', onMediaSourceClosed);
+				mediaSource.addEventListener('error', onMediaSourceError);
+			}
+
+			function appendNextChunkFromQueue() {
+				if (audioChunkQueue.length > 0 && sourceBuffer && !sourceBuffer.updating && mediaSource && mediaSource.readyState === 'open') {
+					try {
+						const nextChunk = audioChunkQueue.shift();
+						// addLogEntry(`Appending queued chunk. Remaining in queue: ${audioChunkQueue.length}`);
+						sourceBuffer.appendBuffer(nextChunk);
+					} catch (e) {
+						addLogEntry(`Error appending from queue: ${e.message}`, "error");
+						cleanupMediaSourceStream();
+					}
+				} else if (audioChunkQueue.length === 0 && !isStreamActive && sourceBuffer && !sourceBuffer.updating && mediaSource && mediaSource.readyState === 'open' ) {
+					// If queue is empty, stream has been marked inactive (finalizeMediaSourceStream was called),
+					// and buffer is not updating, then it's safe to call endOfStream.
+					if (!mediaSource.ended) {
+						addLogEntry("Queue empty, stream inactive, buffer ready: Calling endOfStream.");
+						try {
+							mediaSource.endOfStream();
+						} catch (e) {
+							addLogEntry(`Error calling endOfStream from appendNextChunkFromQueue: ${e.message}`, "error");
+							cleanupMediaSourceStream();
+						}
+					}
+				}
+			}
+
+			function appendChunkToSourceBuffer(chunkBuffer) {
+				if (!isStreamActive || !mediaSource || mediaSource.readyState !== 'open' || !sourceBuffer) {
+					// addLogEntry(`Queueing chunk because stream/sourceBuffer not ready. StreamActive: ${isStreamActive}, MS State: ${mediaSource ? mediaSource.readyState : 'N/A'}`);
+					audioChunkQueue.push(chunkBuffer);
+					return;
+				}
+
+				if (!sourceBuffer.updating) {
+					try {
+						// addLogEntry(`Appending chunk directly. Buffer size: ${chunkBuffer.byteLength}`);
+						sourceBuffer.appendBuffer(chunkBuffer);
+					} catch (e) {
+						addLogEntry(`Error appending buffer directly: ${e.message}. MS State: ${mediaSource.readyState}`, "error");
+						if (e.name === 'QuotaExceededError') {
+							addLogEntry("Buffer quota exceeded. Consider strategies like removing old buffer ranges.", "error");
+						}
+						cleanupMediaSourceStream();
+					}
+				} else {
+					audioChunkQueue.push(chunkBuffer);
+					// addLogEntry(`Chunk queued as buffer is updating. Queue size: ${audioChunkQueue.length}.`);
+				}
+			}
+
+			function finalizeMediaSourceStream() {
+				addLogEntry(`Attempting to finalize MediaSource stream. Stream active: ${isStreamActive}, Queue: ${audioChunkQueue.length}`);
+				isStreamActive = false; // Mark stream as no longer actively receiving new chunks from server.
+
+				if (mediaSource && mediaSource.readyState === 'open') {
+					if (sourceBuffer && !sourceBuffer.updating && audioChunkQueue.length === 0) {
+						// Safe to call endOfStream immediately
+						if (!mediaSource.ended) {
+							try {
+								mediaSource.endOfStream();
+								addLogEntry("MediaSource.endOfStream() called directly in finalize.");
+							} catch (e) {
+								addLogEntry(`Error calling endOfStream in finalize: ${e.message}`, "error");
+								cleanupMediaSourceStream(); // Force cleanup on error
+							}
+						} else {
+							addLogEntry("MediaSource already ended. Finalize complete.");
+						}
+					} else {
+						// Buffer is updating or queue has pending chunks.
+						// endOfStream will be called by appendNextChunkFromQueue when queue is empty and buffer is ready.
+						addLogEntry("Finalize: Buffer busy or queue not empty. endOfStream will be called later via updateend logic.");
+						// If appendNextChunkFromQueue is not triggered (e.g. buffer was updating but no more 'updateend'), 
+						// this state might persist. However, the logic in appendNextChunkFromQueue should handle it.
+						if (!sourceBuffer) {
+							addLogEntry("Cannot finalize as intended: SourceBuffer is null.", "error");
+							cleanupMediaSourceStream();
+						}
+					}
+				} else {
+					addLogEntry("MediaSource not open or null during finalize. Cleaning up.", "event");
+					cleanupMediaSourceStream(); // If not open, likely an issue.
+				}
+			}
+
+			function cleanupMediaSourceStream() {
+				const alreadyCleaningUp = mediaSource === null && !isStreamActive; 
+				addLogEntry(`Cleaning up MediaSource. MS: ${mediaSource ? mediaSource.readyState : 'null'}, SB: ${sourceBuffer ? 'exists' : 'null'}, Queue: ${audioChunkQueue.length}, Active: ${isStreamActive}`);
+				
+				// Set isStreamActive to false as the very first step of cleanup.
+				isStreamActive = false; 
+				
+				if (alreadyCleaningUp && !ttsPlayer.src) { // More robust check for actual cleanup needed
+					// addLogEntry("Skipping redundant cleanup actions."); // Can be verbose
+					return;
+				}
+				
+				if (ttsPlayer) {
+					ttsPlayer.pause();
+					if (ttsPlayer.src && ttsPlayer.src.startsWith('blob:')) {
+						URL.revokeObjectURL(ttsPlayer.src);
+						addLogEntry(`Revoked ttsPlayer Object URL: ${ttsPlayer.src}`);
+					}
+					ttsPlayer.src = ''; 
+					ttsPlayer.removeAttribute('src'); // Ensure it's fully cleared
+					ttsPlayer.load(); // Reset the audio element state
+					addLogEntry("TTS Player paused, src revoked and reset.");
+				}
+
+				if (mediaSource) {
+					// Remove event listeners before detaching or nullifying
+					// This is tricky with anonymous functions. Named functions are better.
+					// For simplicity here, we rely on nullifying mediaSource to stop further interactions.
+					// Proper cleanup would involve mediaSource.removeEventListener for all attached listeners.
+					
+					if (mediaSource.readyState === 'open' && sourceBuffer) {
+						if (!sourceBuffer.updating) {
+							try {
+								sourceBuffer.abort(); // Abort any pending operations on the source buffer
+								addLogEntry("SourceBuffer aborted.");
+							} catch (e) {
+								addLogEntry(`Error aborting SourceBuffer: ${e.message}`, "error");
+							}
+						} else {
+							// If updating, abort might fail or be ignored. The stream is broken anyway.
+							addLogEntry("SourceBuffer was updating during cleanup. Abort might be deferred.", "event");
+						}
+						// Attempt to remove the source buffer if MediaSource is still open
+						// try { mediaSource.removeSourceBuffer(sourceBuffer); addLogEntry("SourceBuffer removed.");}
+						// catch(e) { addLogEntry(`Error removing SourceBuffer: ${e.message}`, "error");}
+					}
+					
+					// If endOfStream hasn't been called and MS is open, it might cause issues if not handled.
+					// However, cleanup is usually called on error or explicit stop, so stream is likely not 'healthy'.
+					// if (mediaSource.readyState === 'open' && !mediaSource.ended) {
+					// try { mediaSource.endOfStream(); addLogEntry("Called endOfStream during cleanup."); }
+					// catch(e) { addLogEntry(`Error endOfStream in cleanup: ${e.message}`);}
+					// }
+					mediaSource = null; // Nullify to prevent further use and help GC
+					sourceBuffer = null;
+					addLogEntry("MediaSource and SourceBuffer references set to null.");
+				} else {
+					addLogEntry("MediaSource was already null during cleanup.")
+				}
+				
+				audioChunkQueue = []; // Clear any pending chunks
+
+				addLogEntry("MediaSource stream resources cleaned up.");
+			}
+			// --- End TTS Streaming Functions ---
 		</script>
 	</body>
 </html>

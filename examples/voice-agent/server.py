@@ -7,6 +7,7 @@ import json
 import logging
 import sys
 import threading
+import base64
 from aiohttp import web
 
 from RealtimeSTT import AudioToTextRecorder
@@ -26,6 +27,8 @@ logging.basicConfig(
 )
 logging.getLogger('websockets').setLevel(logging.WARNING)
 logging.getLogger('faster_whisper').setLevel(logging.WARNING)
+logging.getLogger('RealtimeSTT').setLevel(logging.WARNING)
+logging.getLogger('AudioToTextRecorder').setLevel(logging.WARNING)
 
 class AudioServer:
     """Main server class that handles both HTTP and WebSocket connections."""
@@ -124,8 +127,8 @@ class AudioServer:
 
         return {
             'silero_deactivity_detection': True,
-            'pre_recording_buffer_duration': 1.5,
-            'early_transcription_on_silence': self.args.post_speech_silence / 2,
+            'pre_recording_buffer_duration': 0.6,
+            # 'early_transcription_on_silence': self.args.post_speech_silence / 2,
             'print_transcription_time': True,
             'faster_whisper_vad_filter': True,
             'spinner': False,
@@ -136,7 +139,7 @@ class AudioServer:
             'webrtc_sensitivity': self.args.webrtc_sensitivity,
             'initial_prompt': self.args.initial_prompt,
             'post_speech_silence_duration': self.args.post_speech_silence,
-            'min_length_of_recording': 2.0,
+            'min_length_of_recording': 1.1,
             'min_gap_between_recordings': 0,
             'enable_realtime_transcription': self.args.enable_realtime,
             'realtime_processing_pause': 0,
@@ -192,21 +195,27 @@ class AudioServer:
 
                 try:
                     # Check if it's a control message (JSON)
-                    if message[0] == '{':
+                    if isinstance(message, str) and message.startswith('{'):
                         control_data = json.loads(message)
                         if 'voice_gender' in control_data:
                             client.preferred_voice_gender = control_data['voice_gender']
                             print(f"Client {client_id} set voice gender to: {client.preferred_voice_gender}")
                             continue
 
-                    # Handle audio data
-                    metadata_length = int.from_bytes(message[:4], byteorder='little')
-                    metadata_json = message[4:4+metadata_length].decode('utf-8')
-                    metadata = json.loads(metadata_json)
-                    sample_rate = metadata['sampleRate']
-                    chunk = message[4+metadata_length:]
-                    resampled_chunk = decode_and_resample(chunk, sample_rate, 16000)
-                    client.recorder.feed_audio(resampled_chunk)
+                    # Handle audio data (assuming binary if not JSON control message)
+                    if isinstance(message, bytes):
+                        metadata_length = int.from_bytes(message[:4], byteorder='little')
+                        metadata_json = message[4:4+metadata_length].decode('utf-8')
+                        metadata = json.loads(metadata_json)
+                        sample_rate = metadata['sampleRate']
+                        chunk = message[4+metadata_length:]
+                        resampled_chunk = decode_and_resample(chunk, sample_rate, 16000)
+                        client.recorder.feed_audio(resampled_chunk)
+                    elif not isinstance(message, str):
+                        print(f"Warning: Received unexpected message type from client {client_id}: {type(message)}")
+
+                except json.JSONDecodeError as je:
+                    print(f"JSON decode error for client {client_id}: {je}. Message: {message[:100]}")
                 except Exception as e:
                     print(f"Error processing message for client {client_id}: {e}")
                     continue
@@ -217,32 +226,79 @@ class AudioServer:
             await self.cleanup_client(client_id)
 
     async def generate_and_send_tts(self, client_id: str, text: str) -> None:
-        """Generate TTS audio and send it to the client."""
+        """Generate TTS audio and send it to the client. Supports streaming for OpenAI provider."""
         if client_id not in self.clients or not hasattr(self, 'tts_service'):
             return
 
-        try:
-            client = self.clients[client_id]
-            
-            # Generate audio
-            audio_b64, sample_rate, time_taken = await self.tts_service.generate_audio(
-                text, client.language, client.preferred_voice_gender
-            )
-            
-            if audio_b64:
-                print(f"\033[92mTime taken for TTS: {time_taken:.2f}s\033[92m")
-                print(f"Sending TTS audio to client {client_id}")
-                
-                await self.send_to_client(client_id, {
-                    'type': 'tts_audio',
-                    'audio': audio_b64,
-                    'sample_rate': sample_rate
-                })
-            else:
-                print(f"Failed to generate TTS for client {client_id}")
+        client = self.clients[client_id]
 
-        except Exception as e:
-            print(f"Error in generate_and_send_tts for client {client_id}: {e}")
+        if self.tts_service.provider == "openai":
+            # Use OpenAI streaming
+            print(f"Attempting to stream TTS for client {client_id} using OpenAI.")
+            stream_start_time = time.time()
+            try:
+                await self.send_to_client(client_id, {
+                    'type': 'tts_stream_start',
+                    'format': 'mp3',  # OpenAI TTS default format
+                    'sample_rate': 24000  # OpenAI TTS default sample rate (e.g., gpt-4o-mini-tts)
+                })
+                print(f"Sent tts_stream_start to client {client_id}")
+
+                chunk_count = 0
+                for audio_chunk in self.tts_service.generate_audio_stream(
+                    text, client.preferred_voice_gender
+                ):
+                    if not audio_chunk:  # Should generally not happen with current tts.py impl
+                        continue
+
+                    audio_b64_chunk = base64.b64encode(audio_chunk).decode('utf-8')
+                    await self.send_to_client(client_id, {
+                        'type': 'tts_audio_chunk',
+                        'audio': audio_b64_chunk
+                    })
+                    chunk_count += 1
+                    if chunk_count == 1:
+                        first_chunk_time = time.time() - stream_start_time
+                        print(f"Sent first TTS audio chunk to client {client_id} (after {first_chunk_time:.2f}s)")
+                
+                if chunk_count > 0:
+                    print(f"Finished streaming {chunk_count} TTS chunks to client {client_id}.")
+                else:
+                    print(f"No TTS audio chunks were streamed for client {client_id}. This might be normal for empty text.")
+
+                await self.send_to_client(client_id, {'type': 'tts_stream_end'})
+                print(f"Sent tts_stream_end to client {client_id}")
+                
+                total_stream_time = time.time() - stream_start_time
+                print(f"\033[92mTotal time for TTS streaming interaction with client {client_id}: {total_stream_time:.2f}s\033[92m")
+
+            except ValueError as ve: # Specific error from TTSService if provider is wrong (should be caught by outer check)
+                print(f"TTS streaming ValueError for client {client_id}: {ve}")
+                await self.send_to_client(client_id, {'type': 'tts_stream_error', 'message': str(ve)})
+            except Exception as e:
+                print(f"Error during TTS streaming for client {client_id}: {e}")
+                await self.send_to_client(client_id, {'type': 'tts_stream_error', 'message': 'TTS generation failed during streaming.'})
+        else:
+            # Fallback for non-OpenAI providers (original behavior)
+            # Or, if strictly testing streaming, this block could just log and return.
+            # For now, keeping the original behavior for other providers as a fallback.
+            print(f"TTS provider is '{self.tts_service.provider}'. Using non-streaming TTS for client {client_id}.")
+            try:
+                audio_b64, sample_rate, time_taken = await self.tts_service.generate_audio(
+                    text, getattr(client, 'language', self.args.language), client.preferred_voice_gender
+                )
+                if audio_b64:
+                    print(f"\033[92mTime taken for (non-streamed) TTS: {time_taken:.2f}s\033[92m")
+                    print(f"Sending (non-streamed) TTS audio to client {client_id}")
+                    await self.send_to_client(client_id, {
+                        'type': 'tts_audio',  # Existing type for non-streamed audio
+                        'audio': audio_b64,
+                        'sample_rate': sample_rate
+                    })
+                else:
+                    print(f"Failed to generate (non-streamed) TTS for client {client_id} with provider {self.tts_service.provider}.")
+            except Exception as e:
+                print(f"Error in non-streaming generate_and_send_tts for client {client_id} with provider {self.tts_service.provider}: {e}")
 
     def run_recorder(self, client_id):
         """Initialize and run recorder for a client."""
