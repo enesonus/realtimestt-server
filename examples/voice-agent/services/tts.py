@@ -1,8 +1,11 @@
 import time
 import os
 import base64
+import azure.cognitiveservices.speech as speechsdk
 from openai import OpenAI
-from config import GROQ_API_KEY, OPENAI_API_KEY, DEEPINFRA_API_KEY
+from config import (GROQ_API_KEY, OPENAI_API_KEY,
+                    DEEPINFRA_API_KEY, AZURE_SPEECH_KEY,
+                    AZURE_SPEECH_REGION)
 from voice_mapping import get_voice
 
 
@@ -12,9 +15,20 @@ class TTSService:
     def __init__(self, provider: str = "groq"):
         self.provider = provider
         self.client = None
+        speech_config = speechsdk.SpeechConfig(subscription=AZURE_SPEECH_KEY,
+                                               region=AZURE_SPEECH_REGION)
+        speech_config.speech_synthesis_language = "en-US"
+        speech_config.speech_synthesis_voice_name = "en-US-AvaMultilingualNeural"
+        speech_config.set_speech_synthesis_output_format(
+            speechsdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3)
+        self.speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config,
+                                                                audio_config=None)
+        connection = speechsdk.Connection.from_speech_synthesizer(
+            self.speech_synthesizer)
+        connection.open(True)
         self._initialize_client()
         self._ensure_tmp_directory()
-    
+
     def _initialize_client(self):
         """Initialize the OpenAI client with Groq's API."""
         if self.provider == "groq":
@@ -134,13 +148,14 @@ class TTSService:
 
         Yields:
             bytes: Chunks of audio data (MP3 format).
-        
+
         Raises:
             ValueError: If the provider is not 'openai'.
             # Re-raises exceptions from the OpenAI API client.
         """
         if self.provider != "openai":
-            raise ValueError("Streaming is only supported for the OpenAI TTS provider.")
+            raise ValueError(
+                "Streaming is only supported for the OpenAI TTS provider.")
 
         if not self.client:
             # This ensures the client is initialized, using self.provider.
@@ -165,5 +180,21 @@ class TTSService:
                 for chunk in response.iter_bytes(4096):
                     yield chunk
         except Exception as e:
-            print(f"OpenAI TTS streaming error: {e}") # Log the error
-            raise # Re-raise to allow the caller to handle
+            print(f"OpenAI TTS streaming error: {e}")  # Log the error
+            raise  # Re-raise to allow the caller to handle
+
+    def generate_audio_stream_azure(self, text: str, voice_gender: str):
+        """
+        Generate audio and stream it as it comes from the Azure TTS API.
+        This method can only be used when the provider is 'azure'.
+        """
+
+        result = self.speech_synthesizer.start_speaking_text_async(text).get()
+        audio_data_stream = speechsdk.AudioDataStream(result)
+        audio_buffer = bytes(4096)
+        filled_size = audio_data_stream.read_data(audio_buffer)
+        yield audio_buffer
+        while filled_size > 0:
+            print(f"{filled_size} bytes received, buffer size: {len(audio_buffer)}")
+            filled_size = audio_data_stream.read_data(audio_buffer)
+            yield audio_buffer[:filled_size]

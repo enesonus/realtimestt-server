@@ -12,6 +12,8 @@ OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 DEEPINFRA_API_KEY = os.environ.get('DEEPINFRA_API_KEY')
 PROVIDER = os.environ.get('PROVIDER', 'groq')
 CHAT_MODEL = os.environ.get('CHAT_MODEL', 'gpt-4.1-mini')
+AZURE_SPEECH_KEY = os.environ.get('AZURE_SPEECH_KEY')
+AZURE_SPEECH_REGION = os.environ.get('AZURE_SPEECH_REGION')
 
 def parse_args():
     parser = argparse.ArgumentParser(

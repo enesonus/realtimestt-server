@@ -240,12 +240,12 @@ class AudioServer:
                 await self.send_to_client(client_id, {
                     'type': 'tts_stream_start',
                     'format': 'mp3',  # OpenAI TTS default format
-                    'sample_rate': 24000  # OpenAI TTS default sample rate (e.g., gpt-4o-mini-tts)
+                    'sample_rate': 16000  # OpenAI TTS default sample rate (e.g., gpt-4o-mini-tts)
                 })
                 print(f"Sent tts_stream_start to client {client_id}")
 
                 chunk_count = 0
-                for audio_chunk in self.tts_service.generate_audio_stream(
+                for audio_chunk in self.tts_service.generate_audio_stream_azure(
                     text, client.preferred_voice_gender
                 ):
                     if not audio_chunk:  # Should generally not happen with current tts.py impl
@@ -259,7 +259,7 @@ class AudioServer:
                     chunk_count += 1
                     if chunk_count == 1:
                         first_chunk_time = time.time() - stream_start_time
-                        print(f"Sent first TTS audio chunk to client {client_id} (after {first_chunk_time:.2f}s)")
+                        print(f"\033[92mSent first TTS audio chunk to client {client_id} (after {first_chunk_time:.2f}s)\033[92m")
                 
                 if chunk_count > 0:
                     print(f"Finished streaming {chunk_count} TTS chunks to client {client_id}.")
