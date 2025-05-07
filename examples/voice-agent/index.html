@@ -503,6 +503,8 @@
 							} else if (message.type === "tts_audio") {
 								// Play TTS audio when received
 								playTTSAudio(message.audio, message.mime_type);
+							} else if (message.type === "vad_detect_start"){
+								ttsPlayer.pause();
 							} else {
 								addLogEntry(`Event: ${message.type}`);
 							}
