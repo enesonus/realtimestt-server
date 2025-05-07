@@ -162,7 +162,7 @@ class TTSService:
             )
             # Asynchronously enter the context and iterate over byte chunks
             with streaming_response_context as response:
-                for chunk in response.iter_bytes(2048):
+                for chunk in response.iter_bytes(4096):
                     yield chunk
         except Exception as e:
             print(f"OpenAI TTS streaming error: {e}") # Log the error
