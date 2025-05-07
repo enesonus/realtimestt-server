@@ -435,8 +435,10 @@
 								}
 								// addLogEntry("Received TTS audio chunk"); // Can be too verbose
 								try {
-									const byteCharacters = atob(message.audio);
-									const byteNumbers = new Array(byteCharacters.length);
+									const binary = atob(message.audio);
+									const bytes  = new Uint8Array(binary.length);
+									for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
 									for (let i = 0; i < byteCharacters.length; i++) {
 										byteNumbers[i] = byteCharacters.charCodeAt(i);
 									}
