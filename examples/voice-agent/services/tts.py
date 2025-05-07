@@ -5,7 +5,7 @@ import azure.cognitiveservices.speech as speechsdk
 from openai import OpenAI
 from config import (GROQ_API_KEY, OPENAI_API_KEY,
                     DEEPINFRA_API_KEY, AZURE_SPEECH_KEY,
-                    AZURE_SPEECH_REGION)
+                    AZURE_SPEECH_REGION, CHUNK_SIZE)
 from voice_mapping import get_voice
 
 
@@ -177,7 +177,7 @@ class TTSService:
             )
             # Asynchronously enter the context and iterate over byte chunks
             with streaming_response_context as response:
-                for chunk in response.iter_bytes(4096):
+                for chunk in response.iter_bytes(CHUNK_SIZE):
                     yield chunk
         except Exception as e:
             print(f"OpenAI TTS streaming error: {e}")  # Log the error
@@ -191,7 +191,7 @@ class TTSService:
 
         result = self.speech_synthesizer.start_speaking_text_async(text).get()
         audio_data_stream = speechsdk.AudioDataStream(result)
-        audio_buffer = bytes(4096)
+        audio_buffer = bytes(CHUNK_SIZE)
         filled_size = audio_data_stream.read_data(audio_buffer)
         yield audio_buffer
         while filled_size > 0:
