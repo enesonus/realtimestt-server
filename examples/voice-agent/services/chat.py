@@ -63,7 +63,7 @@ class ChatService:
                     word_list = total_text.strip(" ").split()
                     word_count = len(word_list)
                     if (word_count >= n_words and
-                       (" ".join(word_list[n_words:]).find(".") > -1) and
+                       (" ".join(word_list[n_words:]).find(".") > -1 or " ".join(word_list[n_words:]).find(",") > -1) and
                             init_text == ""):
                         init_text = total_text
                         time_taken = time.time() - start_time

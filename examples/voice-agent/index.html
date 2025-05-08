@@ -406,6 +406,11 @@
 
 							// --- TTS Stream Handling ---
 							if (message.type === "tts_stream_start") {
+
+								const container = document.getElementById('fullText');
+								if (container) {
+									container.textContent = '';
+								}
 								addLogEntry(`TTS Stream Start received. Format: ${message.format}, Sample Rate: ${message.sample_rate}`);
 								
 								// 1. Always clean up any existing stream resources first.
