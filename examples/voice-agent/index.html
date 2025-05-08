@@ -242,6 +242,7 @@
 			const spinner = document.getElementById("spinner");
 			let isInitialized = false;
 			let userInteracted = false; // Flag for user interaction
+			let vadStopTime = Date.now(); // Variable to store VAD start time
 
 			// --- TTS Streaming Variables ---
 			const ttsPlayer = document.getElementById('ttsPlayer');
@@ -429,10 +430,12 @@
 								setupMediaSourceAndPlay(expectedMimeType);
 
 							} else if (message.type === "tts_audio_chunk") {
+
 								if (!isStreamActive) {
 									addLogEntry("Received audio chunk but stream is not active. Discarding.", "error");
 									return;
 								}
+								addLogEntry(`Received chunk after ${(Date.now() - vadStopTime)/1000} second(s) from VAD Stop.`);
 								// addLogEntry("Received TTS audio chunk"); // Can be too verbose
 								try {
 									const byteCharacters = atob(message.audio);
@@ -503,9 +506,13 @@
 							} else if (message.type === "tts_audio") {
 								// Play TTS audio when received
 								playTTSAudio(message.audio, message.mime_type);
-							} else if (message.type === "vad_detect_start"){
-								ttsPlayer.pause();
 							} else {
+								if (message.type === "vad_detect_start"){
+									cleanupMediaSourceStream();
+								}
+								if (message.type === "vad_detect_stop"){
+									vadStopTime = Date.now();
+								}
 								addLogEntry(`Event: ${message.type}`);
 							}
 						} catch (e) {
@@ -799,7 +806,6 @@
 			}
 
 			function finalizeMediaSourceStream() {
-				addLogEntry(`Attempting to finalize MediaSource stream. Stream active: ${isStreamActive}, Queue: ${audioChunkQueue.length}`);
 				isStreamActive = false; // Mark stream as no longer actively receiving new chunks from server.
 
 				if (mediaSource && mediaSource.readyState === 'open') {
@@ -808,7 +814,6 @@
 						if (!mediaSource.ended) {
 							try {
 								mediaSource.endOfStream();
-								addLogEntry("MediaSource.endOfStream() called directly in finalize.");
 							} catch (e) {
 								addLogEntry(`Error calling endOfStream in finalize: ${e.message}`, "error");
 								cleanupMediaSourceStream(); // Force cleanup on error

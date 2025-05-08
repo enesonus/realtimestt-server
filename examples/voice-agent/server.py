@@ -30,9 +30,10 @@ logging.getLogger('faster_whisper').setLevel(logging.WARNING)
 logging.getLogger('RealtimeSTT').setLevel(logging.WARNING)
 logging.getLogger('AudioToTextRecorder').setLevel(logging.WARNING)
 
+
 class AudioServer:
     """Main server class that handles both HTTP and WebSocket connections."""
-    
+
     def __init__(self, args):
         self.clients = {}
         self.main_loop = None
@@ -52,7 +53,7 @@ class AudioServer:
         recorder.start()
         recorder.stop()
         recorder.shutdown()
-        
+
         # Initialize services
         self.chat_service = ChatService()
         if self.args.enable_tts:
@@ -199,25 +200,32 @@ class AudioServer:
                         control_data = json.loads(message)
                         if 'voice_gender' in control_data:
                             client.preferred_voice_gender = control_data['voice_gender']
-                            print(f"Client {client_id} set voice gender to: {client.preferred_voice_gender}")
+                            print(
+                                f"Client {client_id} set voice gender to: {client.preferred_voice_gender}")
                             continue
 
                     # Handle audio data (assuming binary if not JSON control message)
                     if isinstance(message, bytes):
-                        metadata_length = int.from_bytes(message[:4], byteorder='little')
-                        metadata_json = message[4:4+metadata_length].decode('utf-8')
+                        metadata_length = int.from_bytes(
+                            message[:4], byteorder='little')
+                        metadata_json = message[4:4 +
+                                                metadata_length].decode('utf-8')
                         metadata = json.loads(metadata_json)
                         sample_rate = metadata['sampleRate']
                         chunk = message[4+metadata_length:]
-                        resampled_chunk = decode_and_resample(chunk, sample_rate, 16000)
+                        resampled_chunk = decode_and_resample(
+                            chunk, sample_rate, 16000)
                         client.recorder.feed_audio(resampled_chunk)
                     elif not isinstance(message, str):
-                        print(f"Warning: Received unexpected message type from client {client_id}: {type(message)}")
+                        print(
+                            f"Warning: Received unexpected message type from client {client_id}: {type(message)}")
 
                 except json.JSONDecodeError as je:
-                    print(f"JSON decode error for client {client_id}: {je}. Message: {message[:100]}")
+                    print(
+                        f"JSON decode error for client {client_id}: {je}. Message: {message[:100]}")
                 except Exception as e:
-                    print(f"Error processing message for client {client_id}: {e}")
+                    print(
+                        f"Error processing message for client {client_id}: {e}")
                     continue
 
         except websockets.exceptions.ConnectionClosed:
@@ -234,15 +242,10 @@ class AudioServer:
 
         if self.tts_service.provider == "openai":
             # Use OpenAI streaming
-            print(f"Attempting to stream TTS for client {client_id} using OpenAI.")
+            print(
+                f"Attempting to stream TTS for client {client_id} using OpenAI.")
             stream_start_time = time.time()
             try:
-                await self.send_to_client(client_id, {
-                    'type': 'tts_stream_start',
-                    'format': 'mp3',  # OpenAI TTS default format
-                    'sample_rate': 16000  # OpenAI TTS default sample rate (e.g., gpt-4o-mini-tts)
-                })
-                print(f"Sent tts_stream_start to client {client_id}")
 
                 chunk_count = 0
                 for audio_chunk in self.tts_service.generate_audio_stream_azure(
@@ -251,7 +254,8 @@ class AudioServer:
                     if not audio_chunk:  # Should generally not happen with current tts.py impl
                         continue
 
-                    audio_b64_chunk = base64.b64encode(audio_chunk).decode('utf-8')
+                    audio_b64_chunk = base64.b64encode(
+                        audio_chunk).decode('utf-8')
                     await self.send_to_client(client_id, {
                         'type': 'tts_audio_chunk',
                         'audio': audio_b64_chunk
@@ -259,53 +263,63 @@ class AudioServer:
                     chunk_count += 1
                     if chunk_count == 1:
                         first_chunk_time = time.time() - stream_start_time
-                        print(f"\033[92mSent first TTS audio chunk to client {client_id} (after {first_chunk_time:.2f}s)\033[92m")
-                
+                        print(
+                            f"\033[92mSent first TTS audio chunk to client {client_id} (after {first_chunk_time:.2f}s)\033[92m")
+
                 if chunk_count > 0:
-                    print(f"Finished streaming {chunk_count} TTS chunks to client {client_id}.")
+                    print(
+                        f"Finished streaming {chunk_count} TTS chunks to client {client_id}.")
                 else:
-                    print(f"No TTS audio chunks were streamed for client {client_id}. This might be normal for empty text.")
+                    print(
+                        f"No TTS audio chunks were streamed for client {client_id}. This might be normal for empty text.")
 
-                await self.send_to_client(client_id, {'type': 'tts_stream_end'})
-                print(f"Sent tts_stream_end to client {client_id}")
-                
                 total_stream_time = time.time() - stream_start_time
-                print(f"\033[92mTotal time for TTS streaming interaction with client {client_id}: {total_stream_time:.2f}s\033[92m")
+                print(
+                    f"\033[92mTotal time for TTS streaming interaction with client {client_id}: {total_stream_time:.2f}s\033[92m")
 
-            except ValueError as ve: # Specific error from TTSService if provider is wrong (should be caught by outer check)
+            # Specific error from TTSService if provider is wrong (should be caught by outer check)
+            except ValueError as ve:
                 print(f"TTS streaming ValueError for client {client_id}: {ve}")
                 await self.send_to_client(client_id, {'type': 'tts_stream_error', 'message': str(ve)})
             except Exception as e:
-                print(f"Error during TTS streaming for client {client_id}: {e}")
+                print(
+                    f"Error during TTS streaming for client {client_id}: {e}")
                 await self.send_to_client(client_id, {'type': 'tts_stream_error', 'message': 'TTS generation failed during streaming.'})
         else:
             # Fallback for non-OpenAI providers (original behavior)
             # Or, if strictly testing streaming, this block could just log and return.
             # For now, keeping the original behavior for other providers as a fallback.
-            print(f"TTS provider is '{self.tts_service.provider}'. Using non-streaming TTS for client {client_id}.")
+            print(
+                f"TTS provider is '{self.tts_service.provider}'. Using non-streaming TTS for client {client_id}.")
             try:
                 audio_b64, sample_rate, time_taken = await self.tts_service.generate_audio(
-                    text, getattr(client, 'language', self.args.language), client.preferred_voice_gender
+                    text, getattr(
+                        client, 'language', self.args.language), client.preferred_voice_gender
                 )
                 if audio_b64:
-                    print(f"\033[92mTime taken for (non-streamed) TTS: {time_taken:.2f}s\033[92m")
-                    print(f"Sending (non-streamed) TTS audio to client {client_id}")
+                    print(
+                        f"\033[92mTime taken for (non-streamed) TTS: {time_taken:.2f}s\033[92m")
+                    print(
+                        f"Sending (non-streamed) TTS audio to client {client_id}")
                     await self.send_to_client(client_id, {
                         'type': 'tts_audio',  # Existing type for non-streamed audio
                         'audio': audio_b64,
                         'sample_rate': sample_rate
                     })
                 else:
-                    print(f"Failed to generate (non-streamed) TTS for client {client_id} with provider {self.tts_service.provider}.")
+                    print(
+                        f"Failed to generate (non-streamed) TTS for client {client_id} with provider {self.tts_service.provider}.")
             except Exception as e:
-                print(f"Error in non-streaming generate_and_send_tts for client {client_id} with provider {self.tts_service.provider}: {e}")
+                print(
+                    f"Error in non-streaming generate_and_send_tts for client {client_id} with provider {self.tts_service.provider}: {e}")
 
     def run_recorder(self, client_id):
         """Initialize and run recorder for a client."""
         client = self.clients[client_id]
         try:
             print(f"Initializing RealtimeSTT for client {client_id}...")
-            client.recorder = AudioToTextRecorder(**self.get_recorder_config(client_id))
+            client.recorder = AudioToTextRecorder(
+                **self.get_recorder_config(client_id))
             logger = logging.getLogger('RealtimeSTT')
             logger.setLevel(logging.DEBUG)
             logger.addHandler(logging.StreamHandler(sys.stdout))
@@ -318,37 +332,63 @@ class AudioServer:
                     full_sentence = client.recorder.text()
                     if full_sentence and self.main_loop is not None:
                         # Get chat response
-                        response_text, response_time = self.chat_service.get_chat_response(full_sentence)
-                        print(f"User input: {full_sentence}\nAgent response: {response_text}")
-                        print(f"\033[92mTime taken for chat response: {response_time:.2f}s\033[92m")
+                        print(f"User input: {full_sentence}\n")
 
-                        # Calculate latency if we have a VAD stop time
-                        latency_ms = None
-                        if client.last_vad_stop is not None:
-                            latency_ms = int((time.time() - client.last_vad_stop) * 1000)
-                            client.last_vad_stop = None  # Reset for next sentence
-
-                        # Send full sentence to client
                         asyncio.run_coroutine_threadsafe(
                             self.send_to_client(client_id, {
-                                'type': 'fullSentence',
-                                'text': response_text,
-                                'latency_ms': latency_ms
-                            }), self.main_loop)
+                                'type': 'tts_stream_start',
+                                'format': 'mp3',  # OpenAI TTS default format
+                                # Azure TTS default sample rate (e.g., gpt-4o-mini-tts)
+                                'sample_rate': 16000
+                            }), # Wait for the message to be sent
+                            self.main_loop).result()
+                        print(
+                            f"Sent tts_stream_start to client {client_id}")
+                        for response_text, response_time in self.chat_service.get_chat_response(full_sentence):
+                            print(f"Agent response: {response_text}")
+                            print(
+                                f"\033[92mTime taken for chat response: {response_time:.2f}s\033[92m")
 
-                        # Generate and send TTS if enabled
-                        if self.args.enable_tts:
+                            # Calculate latency if we have a VAD stop time
+                            latency_ms = None
+                            if client.last_vad_stop is not None:
+                                latency_ms = int(
+                                    (time.time() - client.last_vad_stop) * 1000)
+                                client.last_vad_stop = None  # Reset for next sentence
+
+                            # Send full sentence to client
                             asyncio.run_coroutine_threadsafe(
-                                self.generate_and_send_tts(client_id, response_text),
-                                self.main_loop
-                            )
+                                self.send_to_client(client_id, {
+                                    'type': 'fullSentence',
+                                    'text': response_text,
+                                    'latency_ms': latency_ms
+                                }), self.main_loop)
 
-                        print(f"\rClient {client_id} Agent Response: {response_text} \033[92m(Latency: {latency_ms}ms)\033[92m")
+                            # Generate and send TTS if enabled
+                            if self.args.enable_tts:
+
+                                asyncio.run_coroutine_threadsafe(
+                                    self.generate_and_send_tts(
+                                        client_id, response_text),
+                                    self.main_loop
+                                ).result()  # Wait for TTS to finish
+
+                        print(
+                            f"\rClient {client_id} Agent Response: {response_text} \033[92m(Total Latency: {latency_ms}ms)\033[92m")
+                        asyncio.run_coroutine_threadsafe(
+                            self.send_to_client(client_id,
+                                                {'type': 'tts_stream_end'}),
+                            self.main_loop
+                        ).result()
+                        print(
+                            f"Sent tts_stream_end to client {client_id}")
                 except Exception as e:
-                    print(f"Error in recorder thread for client {client_id}: {e}")
+                    print(
+                        f"Error in recorder thread for client {client_id}: {e}")
                     continue
         except Exception as e:
-            print(f"Fatal error in recorder thread for client {client_id}: {e}")
+            print(
+                f"Fatal error in recorder thread for client {client_id}: {e}")
             client.is_running = False
             client.recorder_ready.set()  # Prevent deadlock
 
@@ -391,7 +431,8 @@ class AudioServer:
             "http",
             authtoken_from_env=True
         )
-        print(f"HTTP tunnel \"{http_tunnel.url()}\" -> \"http://localhost:8001\"")
+        print(
+            f"HTTP tunnel \"{http_tunnel.url()}\" -> \"http://localhost:8001\"")
 
         # Start WebSocket server on port 8002 with random domain
         ws_tunnel = await ngrok.forward(
@@ -411,7 +452,8 @@ class AudioServer:
         # Start WebSocket server
         ws_server = await websockets.serve(client_handler, "localhost", 8002)
 
-        print(f"\033[92m\nAccess the demo client on {http_tunnel.url()}\033[92m\n")
+        print(
+            f"\033[92m\nAccess the demo client on {http_tunnel.url()}\033[92m\n")
         try:
             await asyncio.Future()  # run forever
         except asyncio.CancelledError:
@@ -427,7 +469,7 @@ def main():
     """Entry point for the application."""
     args = parse_args()
     print("Starting server, please wait...")
-    
+
     server = AudioServer(args)
     try:
         asyncio.run(server.main())

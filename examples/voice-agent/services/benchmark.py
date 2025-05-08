@@ -1,53 +1,7 @@
-import argparse
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-# Load API keys from environment variables or define them here
-# It's strongly recommended to use environment variables for security
-NGROK_AUTHTOKEN = os.environ.get('NGROK_AUTHTOKEN')
-GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
-OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
-DEEPINFRA_API_KEY = os.environ.get('DEEPINFRA_API_KEY')
-PROVIDER = os.environ.get('PROVIDER', 'groq')
-CHAT_MODEL = os.environ.get('CHAT_MODEL', 'gpt-4.1-mini')
-AZURE_SPEECH_KEY = os.environ.get('AZURE_SPEECH_KEY')
-AZURE_SPEECH_REGION = os.environ.get('AZURE_SPEECH_REGION')
-CHUNK_SIZE = int(os.environ.get('CHUNK_SIZE', 4096))
-
-def parse_args():
-    parser = argparse.ArgumentParser(
-        description='Start the STT server with custom parameters')
-    parser.add_argument('--silero-sensitivity', type=float, default=0.4,
-                        help='Silero VAD sensitivity (default: 0.4)')
-    parser.add_argument('--language', type=str, default="",
-                        help='Language of transcript (default: auto)')
-    parser.add_argument('--webrtc-sensitivity', type=int, default=2,
-                        help='WebRTC VAD sensitivity (default: 2)')
-    parser.add_argument('--post-speech-silence', type=float, default=0.4,
-                        help='Post speech silence duration in seconds (default: 0.4)')
-    parser.add_argument('--realtime-model', type=str, default='medium',
-                        choices=['tiny', 'tiny.en', 'base', 'base.en', 'small', 'small.en', 'medium',
-                                 'medium.en', 'large-v1', 'large-v2', 'large-v3', 'large-v3-turbo'],
-                        help='Model type for realtime transcription (default: medium)')
-    parser.add_argument('--model', type=str, default='large-v3-turbo',
-                        choices=['tiny', 'tiny.en', 'base', 'base.en', 'small', 'small.en', 'medium',
-                                 'medium.en', 'large-v1', 'large-v2', 'large-v3', 'large-v3-turbo'],
-                        help='Model type for final transcription (default: large-v3-turbo)')
-    parser.add_argument('--beam-size', type=int, default=7,
-                        help='Beam size for final transcription (default: 7)')
-    parser.add_argument('--beam-size-realtime', type=int, default=5,
-                        help='Beam size for realtime transcription (default: 5)')
-    parser.add_argument('--enable-realtime', action='store_true',
-                        help='Enable realtime transcription')
-    parser.add_argument('--enable-tts', action='store_true',
-                        help='Enable text-to-speech conversion of transcribed text')
-    parser.add_argument('--initial_prompt', type=str,
-                        default="",
-                        help='Initial prompt for the transcription model.')
-    args = parser.parse_args()
-    return args
+import time
+from statistics import mean, stdev
+from openai import OpenAI
 
 SYSTEM_PROMPT = os.environ.get('SYSTEM_PROMPT', None)
 if SYSTEM_PROMPT is None:
@@ -191,3 +145,75 @@ Always prioritize:
 * Usefulness over verbosity
 
 You are now live and ready to speak."""
+
+def benchmark_chat_completion(
+    client: OpenAI,
+    history: list,
+    model: str,
+    temperature: float = 0.7,
+    max_tokens: int = 2048,
+    top_p: float = 1.0,
+    stream: bool = False,
+    runs: int = 10
+):
+    """
+    Run `client.chat.completions.create` `runs` times and report timing stats.
+    """
+    timings = []
+    for i in range(1, runs + 1):
+        start = time.perf_counter()
+        _ = client.chat.completions.create(
+            model=model,
+            messages=history,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            top_p=top_p,
+            stream=stream,
+        )
+        end = time.perf_counter()
+        elapsed = end - start
+        timings.append(elapsed)
+        print(f"Run {i:>2}/{runs} → {elapsed:.3f} sec")
+
+    avg_time = mean(timings)
+    std_time = stdev(timings) if runs > 1 else 0.0
+    print("\n====== Summary ======")
+    print(f"Average time  : {avg_time:.3f} sec")
+    print(f"Std. dev.     : {std_time:.3f} sec")
+    print(f"Fastest run   : {min(timings):.3f} sec")
+    print(f"Slowest run   : {max(timings):.3f} sec")
+
+    return {
+        "timings": timings,
+        "average": avg_time,
+        "std_dev": std_time,
+        "min": min(timings),
+        "max": max(timings),
+    }
+
+
+if __name__ == "__main__":
+    # --- Configure these to match your setup ---
+    client = OpenAI(
+        base_url="https://api.fireworks.ai/inference/v1",
+        api_key="fw_3ZSG7n7LQsi1KcRmhgWGrGCH",  # replace with your API key
+    )  # or however you instantiate your SDK client
+
+    CHAT_MODEL = "accounts/fireworks/models/llama4-maverick-instruct-basic"  # replace with your model constant
+    history = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user",   "content": "Tell a 50 word sci fi story."},
+    ]
+    N = 10  # number of benchmark runs
+    # ----------------------------------------
+
+    results = benchmark_chat_completion(
+        client=client,
+        history=history,
+        model=CHAT_MODEL,
+        temperature=0.7,
+        max_tokens=2048,
+        top_p=1.0,
+        stream=False,
+        runs=N
+    )
