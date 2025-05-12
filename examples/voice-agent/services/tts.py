@@ -195,6 +195,6 @@ class TTSService:
         filled_size = audio_data_stream.read_data(audio_buffer)
         yield audio_buffer
         while filled_size > 0:
-            print(f"{filled_size} bytes received, buffer size: {len(audio_buffer)}")
+            # print(f"{filled_size} bytes received, buffer size: {len(audio_buffer)}")
             filled_size = audio_data_stream.read_data(audio_buffer)
             yield audio_buffer[:filled_size]

@@ -15,6 +15,7 @@ CHAT_MODEL = os.environ.get('CHAT_MODEL', 'gpt-4.1-mini')
 AZURE_SPEECH_KEY = os.environ.get('AZURE_SPEECH_KEY')
 AZURE_SPEECH_REGION = os.environ.get('AZURE_SPEECH_REGION')
 CHUNK_SIZE = int(os.environ.get('CHUNK_SIZE', 4096))
+DOMAIN = os.environ.get('DOMAIN', None)
 
 def parse_args():
     parser = argparse.ArgumentParser(

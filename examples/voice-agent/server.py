@@ -13,7 +13,7 @@ from aiohttp import web
 from RealtimeSTT import AudioToTextRecorder
 
 # Local imports
-from config import parse_args, PROVIDER
+from config import parse_args, PROVIDER, DOMAIN
 from utils import decode_and_resample, preprocess_realtime_text
 from models import ClientSession
 from services.chat import ChatService
@@ -429,6 +429,7 @@ class AudioServer:
         http_tunnel = await ngrok.forward(
             8001,
             "http",
+            domain=DOMAIN,
             authtoken_from_env=True
         )
         print(
