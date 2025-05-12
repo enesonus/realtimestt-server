@@ -335,7 +335,7 @@ class AudioServer:
             "http",
             authtoken_from_env=True
         )
-        print(f"HTTP tunnel \"{http_tunnel.url()}\" -> \"http://localhost:8001\"")
+        print(f"HTTP tunnel \"{http_tunnel.url()}\" -> \"http://0.0.0.0:8001\"")
 
         # Start WebSocket server on port 8002 with random domain
         ws_tunnel = await ngrok.forward(
@@ -344,16 +344,16 @@ class AudioServer:
             authtoken_from_env=True,
         )
         self.ws_url = ws_tunnel.url().replace('https://', 'wss://')
-        print(f"WebSocket tunnel \"{self.ws_url}\" -> \"ws://localhost:8002\"")
+        print(f"WebSocket tunnel \"{self.ws_url}\" -> \"ws://0.0.0.0:8002\"")
 
         # Start HTTP server
         runner = web.AppRunner(self.app)
         await runner.setup()
-        site = web.TCPSite(runner, 'localhost', 8001)
+        site = web.TCPSite(runner, '0.0.0.0', 8001)
         await site.start()
 
         # Start WebSocket server
-        ws_server = await websockets.serve(client_handler, "localhost", 8002)
+        ws_server = await websockets.serve(client_handler, "0.0.0.0", 8002)
 
         print(f"\033[92m\nAccess the demo client on {http_tunnel.url()}\033[92m\n")
         try:
