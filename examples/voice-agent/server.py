@@ -55,7 +55,6 @@ class AudioServer:
         recorder.shutdown()
 
         # Initialize services
-        self.chat_service = ChatService()
         if self.args.enable_tts:
             self.tts_service = TTSService(PROVIDER)
             print(f"TTS is enabled with provider: {PROVIDER}")
@@ -320,6 +319,7 @@ class AudioServer:
             print(f"Initializing RealtimeSTT for client {client_id}...")
             client.recorder = AudioToTextRecorder(
                 **self.get_recorder_config(client_id))
+            client.chat_service = ChatService()
             logger = logging.getLogger('RealtimeSTT')
             logger.setLevel(logging.DEBUG)
             logger.addHandler(logging.StreamHandler(sys.stdout))
@@ -344,7 +344,7 @@ class AudioServer:
                             self.main_loop).result()
                         print(
                             f"Sent tts_stream_start to client {client_id}")
-                        for response_text, response_time in self.chat_service.get_chat_response(full_sentence):
+                        for response_text, response_time in client.chat_service.get_chat_response(full_sentence):
                             print(f"Agent response: {response_text}")
                             print(
                                 f"\033[92mTime taken for chat response: {response_time:.2f}s\033[92m")
